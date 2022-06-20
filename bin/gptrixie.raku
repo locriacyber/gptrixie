@@ -23,7 +23,7 @@ sub sort-by-file($att, @array, @user-excludes) {
 }
 
 sub create-xml(Proc:D $prun --> Str:D) {
-  gpt-note "Calling: <$prun.command()>";
+  note "Calling: <$prun.command()>";
   die "Error with castxml : " ~ $prun.err.slurp if $prun.exitcode != 0;
   my $serr = $prun.err.slurp;
   my $xml-output = $prun.out.slurp;
@@ -31,16 +31,18 @@ sub create-xml(Proc:D $prun --> Str:D) {
   $xml-output;
 }
 
+my %*SUB-MAIN-OPTS = :named-anywhere #`(allow named variables at any location);
+
 sub MAIN(
           $header-file #= The header file
-        #  , Bool :$all #= Generate everything
+         , IO(Str) :$o #= Output file
          , Bool :$enums #= Generate enumerations
          , Bool :$functions #= Generate functions
          , Bool :$structs #= Generate structures and unions
          , Bool :$externs #= Generate extern declaration
          , Str :$define-enum #= Try to generate enumeration from #define using the given starting pattern
-         , Str :$ooc #= Do nothing
-         , Bool :$silent = False #= Remove all output on stderr
+         , Str :$ooc #= Do nothing        
+         , Bool :$debug  = False #= print parsed information, for debugging
          , Bool :$list-types #= Mostly for debug purpose, list all the C type found
          , Bool :$list-files #= List all the files involved
          , Str  :$list-deps #= List the dependancy from other files for this file, based on type used
@@ -54,22 +56,33 @@ sub MAIN(
          , Str :$castxml-std = 'c89' #= allow for gptrixie to use castxml, you need to specificy the C standard
          , *@tooloptions #= remaining options are passed to gccxml. eg -I /path/needed/by/header
          ) {
+  my $of = do
+    if not $o.defined {
+      if $*OUT.t {
+        die "I refuse to output to TTY. Specify '-o /dev/stdout' ignore this.";
+      }
+      $*OUT
+    } else {
+      $o.open: :w
+    };
+  
+  LEAVE $of.flush;
+
   # our $all = $all;
   my $all = False;
-  if !($enums or $functions or $structs or $externs) {
+  if not ($enums or $functions or $structs or $externs) {
     note "Not asked to generate anything. I guess you want to generate everything.";
     $all = True;
   }
 
-  if $define-enum.DEFINITE and ! $define-enum.index(':').DEFINITE {
+  if $define-enum.defined and ! $define-enum.index(':').defined {
       die "The define-enum option must be of the form enumname:pattern";
   }
-  $SILENT = $silent;
 
 
   my $gmerge-stypedef = $merge-stypedef;
 
-  if $gptfile.DEFINITE {
+  if $gptfile.defined {
     !!! "disabled due to bitrot"
     # read-gpt-file($gptfile);
     # $gmerge-stypedef = $GPT::FileGenerator::merge-typedef-struct;
@@ -88,7 +101,7 @@ sub MAIN(
   for @commands -> ($command, @arg) {
     my $prun = Proc.new(:out, :err);
     if not $prun.spawn($command, @arg) {
-      say "Cannot find command: $command";
+      $of.put: "Cannot find command: $command";
       next;
     }
     $xml-output = create-xml($prun);
@@ -102,7 +115,27 @@ sub MAIN(
     die;
   } 
     
-  my AllTheThings $att = get-ast-from-header(:$xml-output, :$gmerge-stypedef);
+  my AllTheThings $att = get-ast-from-header(:$of, :$xml-output, :$gmerge-stypedef);
+
+  if $debug {
+    note "\n==CSTRUCT==";
+    for $att.structs.kv -> $k, $v {
+      note "-$k : {$v.name}";
+      for $v.fields -> $f {
+        note "   {$f.type.Str} ({$f.type-id})  '{$f.name}'";
+      }
+    }
+
+    note "==FUNCTIONS==";
+
+    for $att.functions -> $f {
+      my @tmp;
+      for $f.arguments -> $a {
+        @tmp.push($a.type ~ ' ' ~ $a.name);
+      }
+      note $f.returns ~ "\t\t" ~ $f.name ~ '(' ~ @tmp.join(', ') ~ ')';
+    }
+  }
 
   my @files = ();
   my @user-excludes = ();
@@ -116,23 +149,23 @@ sub MAIN(
     }
   }
   if @files !== Empty {
-    gpt-note "Displaying content of : " ~ @files.join(', ');
+    note "Displaying content of : " ~ @files.join(', ');
   }
   if @user-excludes !== Empty {
-    gpt-note "Excluding content of : " ~ @user-excludes.join(', ');
+    note "Excluding content of : " ~ @user-excludes.join(', ');
   }
   
-  gpt-note 'Number of things founds';
-  gpt-note '-Types: ' ~ $att.types.elems;
-  gpt-note '-Structures: ' ~ $att.structs.elems;
-  gpt-note '-Unions: ' ~ $att.unions.elems;
-  gpt-note '-Enums: ' ~ $att.enums.elems;
-  gpt-note '-Functions: ' ~ $att.functions.elems;
-  gpt-note '-Variables: ' ~ $att.variables.elems;
-  gpt-note '-Files: ' ~ $att.files.elems;
-  gpt-note "Time to generate stuff\n\n";
+  note 'Number of things founds';
+  note '-Types: ' ~ $att.types.elems;
+  note '-Structures: ' ~ $att.structs.elems;
+  note '-Unions: ' ~ $att.unions.elems;
+  note '-Enums: ' ~ $att.enums.elems;
+  note '-Functions: ' ~ $att.functions.elems;
+  note '-Variables: ' ~ $att.variables.elems;
+  note '-Files: ' ~ $att.files.elems;
+  note "Generating Raku file...";
 
-  if $list-deps.DEFINITE {
+  if $list-deps.defined {
     list-deps($att, $list-deps);
   }
   if $list-types {
@@ -171,58 +204,59 @@ sub MAIN(
   dg-init($att);
   if $enums or $all or $define-enum {
     my %h = dg-generate-enums();
-    say '## Enumerations';
+    $of.put: '## Enumerations';
     my %sortedh = sort-by-file($att, %h.values, @user-excludes);
     for %sortedh.kv -> $k, @v {
-      say "\n# == {$att.files{$k}} ==\n";
+      $of.put: "\n# == {$att.files{$k}} ==\n";
       for @v -> $ob {
-        say $ob<p6str>;
+        $of.put: $ob<p6str>;
       }
     }
   }
   
   if $structs or $all {
     my %h = dg-generate-structs();
-    say '## Structures' ~ "\n";
+    $of.put: '## Structures' ~ "\n";
     my %sortedh = sort-by-file($att, %h.values, @user-excludes);
     for %sortedh.kv -> $k, @v {
-      say "\n# == {$att.files{$k}} ==\n";
+      $of.put: "\n# == {$att.files{$k}} ==\n";
       for @v.kv -> $i, $ob {
         if $ob<obj> ~~ Struct {
-          if @v[$i + 1].DEFINITE and @v[$i + 1]<obj> ~~ AnonymousUnion and @v[$i + 1]<obj>.struct.DEFINITE {
-            say @v[$i + 1]<p6str>;
+          if @v[$i + 1].defined and @v[$i + 1]<obj> ~~ AnonymousUnion and @v[$i + 1]<obj>.struct.defined {
+            $of.put: @v[$i + 1]<p6str>;
           }
         }
-        if !($ob<obj> ~~ AnonymousUnion and $ob<obj>.struct.DEFINITE) {
-          say $ob<p6str>;
+        if !($ob<obj> ~~ AnonymousUnion and $ob<obj>.struct.defined) {
+          $of.put: $ob<p6str>;
         }
       }
     }
   }
     
   if $functions or $all {
-    say '## Extras stuff' ~ "\n";
+    $of.put: '## Extras stuff' ~ "\n";
     dg-generate-extra();
     my %h = dg-generate-functions();
-    say '## Functions' ~ "\n";
+    $of.put: '## Functions' ~ "\n";
     my %sortedh = sort-by-file($att, %h.values, @user-excludes);
     for %sortedh.kv -> $k, @v {
-      say "\n# == {$att.files{$k}} ==\n";
+      $of.put: "\n# == {$att.files{$k}} ==\n";
       for @v -> $ob {
-        say $ob<p6str>;
+        $of.put: $ob<p6str>;
       }
     }
   }
   
   if $externs or $all {
-    say '## Externs' ~ "\n";
+    $of.put: '## Externs' ~ "\n";
     my %h = dg-generate-externs();
     my %sortedh = sort-by-file($att, %h.values, @user-excludes);
     for %sortedh.kv -> $k, @v {
-      say "\n# == {$att.files{$k}} ==\n";
+      $of.put: "\n# == {$att.files{$k}} ==\n";
       for @v -> $ob {
-        say $ob<p6str>;
+        $of.put: $ob<p6str>;
       }
     }
   }
+  note "Done";
 }

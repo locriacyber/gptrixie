@@ -3,15 +3,14 @@ unit module CastXML::Parser;
 use XML;
 use GPT::Class;
 
-our $SILENT is export = False;
-
-sub gpt-note (*@msg) is export {
-   note |@msg unless $SILENT;
-}
-
 my constant $PLACEHOLDER = "GPTRIXIE_FIXME";
 
-sub get-ast-from-header(:$xml-output, :$gmerge-stypedef) is export {
+sub get-ast-from-header(IO::Handle:D :$of, :$xml-output, :$gmerge-stypedef) is export {
+  ENTER my \backup = $*OUT;
+  LEAVE $*OUT = backup;
+
+  $*OUT = $of; # 'temp' or 'my' not working
+
   my %types;
   my @typedefs;
   my %fields;
@@ -28,11 +27,11 @@ sub get-ast-from-header(:$xml-output, :$gmerge-stypedef) is export {
 
   %times<gccxml> = now - $t;
   $t = now;
-  gpt-note "Parsing the XML file";
+  note "Parsing the XML file";
   my $xml = from-xml($xml-output);
   %times<parse-xml> = now - $t;
   $t = now;
-  gpt-note "Doing magic";
+  note "Doing magic";
   
   for $xml.elements(:TAG<File>) -> $filef {
      %files{$filef<id>} = $filef<name>;
@@ -70,8 +69,8 @@ sub get-ast-from-header(:$xml-output, :$gmerge-stypedef) is export {
         my TypeDefType $t .= new(:id($elem<id>));
         $t.ref-id = $elem<type>;
         $t.set-clocation($elem);
-#         say $elem<name>;
-#         say $t.ref-id;
+#         $of.put: $elem<name>;
+#         $of.put: $t.ref-id;
         $t.ref-type = %types{$t.ref-id} if %types{$t.ref-id}:exists;
         $t.name = $elem<name>;
         %types{$t.id} = $t;
@@ -105,7 +104,7 @@ sub get-ast-from-header(:$xml-output, :$gmerge-stypedef) is export {
         $s.name = $elem<name>.defined ?? $elem<name> !! $elem<mangled>;
         $s.name = $PLACEHOLDER if !$s.name.defined || $s.name eq '';
         $s.id = $elem<id>;
-        #say "Struct : ", $s.id ~ $s.name;
+        #$of.put: "Struct : ", $s.id ~ $s.name;
         $s.set-clocation($elem);
         $s.file = %files{$s.file-id};
         %structs{$s.id} = $s;
@@ -181,13 +180,13 @@ sub get-ast-from-header(:$xml-output, :$gmerge-stypedef) is export {
           for %types.kv -> $id, $t {
               if $t ~~ IndirectType {
                   unless $t.ref-type:defined {
-                      #say "Found an undef indirect id: "~ $t.ref-id;
+                      #$of.put: "Found an undef indirect id: "~ $t.ref-id;
                       $t.ref-type = %types{$t.ref-id};
                       $change = True;
                   }
                   CATCH {
                       default {
-                          say $t.raku;
+                          $of.put: $t.raku;
                       }
                   }
               }
@@ -235,24 +234,24 @@ sub get-ast-from-header(:$xml-output, :$gmerge-stypedef) is export {
   }
   for @variables -> $v {
     $v.type = %types{$v.type-id};
-    #say $v.name ~ ' - ' ~ $v.type;
+    #$of.put: $v.name ~ ' - ' ~ $v.type;
   }
-  #say "Before FIX";
+  #$of.put: "Before FIX";
   #for %structs.kv -> $id, $s {
-  #    say "ID : ", $id, " name = ", $s.name
+  #    $of.put: "ID : ", $id, " name = ", $s.name
   #}
 
   sub fix-struct-name { # CASTXML does not give a name to struct defined like typedef struct {} name
       # Also does not give nice name to anonymous struct in union
-      #say "fix stuff";
+      #$of.put: "fix stuff";
       for %structs.keys -> $id {
           next if %structs{$id} !~~ Struct;
-#          say "Id: ", $id, "name", %structs{$id}.name;
+#          $of.put: "Id: ", $id, "name", %structs{$id}.name;
           if %structs{$id}.name eq $PLACEHOLDER {
               # Merging typedef struct {}
               for @typedefs -> $td {
                   if $td.ref-id eq $id {
- #                     say "merging struct ", $id , " with typedef ", $td.id;
+ #                     $of.put: "merging struct ", $id , " with typedef ", $td.id;
                       %structs{$id}.name = $td.name;
                       %structs{$id}.id = $td.id;
                       %types{$id}.id = $td.id;
@@ -269,11 +268,11 @@ sub get-ast-from-header(:$xml-output, :$gmerge-stypedef) is export {
       }
       # anonym union
       for %cunions.kv -> $id, $union {
-          #say "Union : " ~ $union.id;
+          #$of.put: "Union : " ~ $union.id;
           for $union.members -> $field {
-              #say "Field : " ~ $field.name ~ $field.type.id;
+              #$of.put: "Field : " ~ $field.name ~ $field.type.id;
               if $field.type ~~ StructType {
-                  #say "Find struct type in " ~ $union.name;
+                  #$of.put: "Find struct type in " ~ $union.name;
                   if %structs{$field.type.id}.name eq $PLACEHOLDER {
                       if $union !~~ AnonymousUnion {
                           %structs{$field.type.id}.name =
@@ -290,32 +289,10 @@ sub get-ast-from-header(:$xml-output, :$gmerge-stypedef) is export {
       }
   }
   fix-struct-name();
-  #say $_.id, " : ", $_.name  for %structs.values;
+  #$of.put: $_.id, " : ", $_.name  for %structs.values;
   #exit 1;
   %times<magic> = now - $t;
-  gpt-note "Times -- gccxml: %times<gccxml> sec; xml parsing: %times<parse-xml> sec; magic: %times<magic>";
-  
-  
-  if not $SILENT {
-    note "\n==CSTRUCT==";
-    for %structs.kv -> $k, $v {
-      note "-$k : {$v.name}";
-      for $v.fields -> $f {
-        note "   {$f.type.Str} ({$f.type-id})  '{$f.name}'";
-      }
-    }
-
-    note "==FUNCTIONS==";
-
-    for @cfunctions -> $f {
-      my @tmp;
-      for $f.arguments -> $a {
-        @tmp.push($a.type ~ ' ' ~ $a.name);
-      }
-      note $f.returns ~ "\t\t" ~ $f.name ~ '(' ~ @tmp.join(', ') ~ ')';
-    }
-  }
-
+  note "Times -- gccxml: %times<gccxml> sec; xml parsing: %times<parse-xml> sec; magic: %times<magic>";
   
   my $att = AllTheThings.new;
   $att.files = %files;

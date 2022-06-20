@@ -15,7 +15,7 @@
         "GPT::ListTypes"      : "lib/GPT/ListTypes.pm6",
         "GPT::ListFiles"      : "lib/GPT/ListFiles.pm6",
         "CastXML::Parser"     : "lib/CastXML/Parser.rakumod",
-        "gptrixie"            : "bin/gptrixie"
+        "gptrixie"            : "bin/gptrixie.raku"
     },
     "source-url"    : "git://github.com/Skarsnik/gptrixie.git",
     "tags" : [ "NativeCall", "Authoring", "Generator"]
