@@ -15,8 +15,9 @@
         "GPT::ListTypes"      : "lib/GPT/ListTypes.pm6",
         "GPT::ListFiles"      : "lib/GPT/ListFiles.pm6",
         "GPT::Processing"     : "lib/GPT/Processing.rakumod",
+        "GPT::Printer"        : "lib/GPT/Printer.rakumod",
+        "GPT::Parser::CastXML": "lib/GPT/Parser/CastXML.rakumod",
 
-        "CastXML::Parser"     : "lib/CastXML/Parser.rakumod",
         
         "gptrixie"            : "bin/gptrixie.raku"
     },

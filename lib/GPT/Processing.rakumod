@@ -3,6 +3,16 @@ unit module GPT::Processing;
 use XML;
 use GPT::Class;
 
+sub timethis (Str $task_desc, &code) is export {
+  $*ERR.print: $task_desc;
+  $*ERR.print: "... ";
+  my $start = now;
+  my \res := code;
+  my $time = now - $start;
+  $*ERR.print: "$time.fmt('%.2f') sec\n";
+  res
+}
+
 my constant $PLACEHOLDER = "GPTRIXIE_FIXME";
 
 sub add-stuff-from-xml-element
@@ -157,7 +167,7 @@ sub resolvetype(%types) is export {
         }
         CATCH {
           default {
-            say $t.raku;
+            note "Error: " ~ $t.raku;
           }
         }
       }

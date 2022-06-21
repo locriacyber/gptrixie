@@ -1,18 +1,9 @@
-unit module CastXML::Parser;
+unit module GPT::Parser::CastXML;
 
 use XML;
 use GPT::Class;
 use GPT::Processing;
-
-sub timethis (Str $task_desc, &code) is export {
-  $*ERR.print: $task_desc;
-  $*ERR.print: "... ";
-  my $start = now;
-  my \res := code;
-  my $time = now - $start;
-  $*ERR.print: "$time sec\n";
-  res
-}
+use GPT::Printer;
 
 sub get-ast-from-header(IO::Handle:D :$of, :$xml-output, Bool:D :$merge-types) is export {
   ENTER my \backup = $*OUT;
