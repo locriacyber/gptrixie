@@ -14,7 +14,10 @@
         "GPT::HandleFileDeps" : "lib/GPT/HandleFileDeps.pm6",
         "GPT::ListTypes"      : "lib/GPT/ListTypes.pm6",
         "GPT::ListFiles"      : "lib/GPT/ListFiles.pm6",
+        "GPT::Processing"     : "lib/GPT/Processing.rakumod",
+
         "CastXML::Parser"     : "lib/CastXML/Parser.rakumod",
+        
         "gptrixie"            : "bin/gptrixie.raku"
     },
     "source-url"    : "git://github.com/Skarsnik/gptrixie.git",

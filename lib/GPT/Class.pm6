@@ -1,6 +1,4 @@
-
-
-module GPT::Class {
+unit module GPT::Class;
 
 role CLocation is rw is export {
   has	$.file-id;
@@ -210,6 +208,4 @@ class AllTheThings is rw is export {
   has	%.files;
   has	%.unions;
   has	@.variables;
-}
-
 }

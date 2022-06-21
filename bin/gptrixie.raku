@@ -9,7 +9,6 @@ use GPT::HandleFileDeps;
 use GPT::ListTypes;
 use GPT::ListFiles;
 use CastXML::Parser;
-#use OOGenerator;
 
 sub sort-by-file($att, @array, @user-excludes) {
   my %toret;
@@ -23,7 +22,6 @@ sub sort-by-file($att, @array, @user-excludes) {
 }
 
 sub create-xml(Proc:D $prun --> Str:D) {
-  note "Calling: <$prun.command()>";
   die "Error with castxml : " ~ $prun.err.slurp if $prun.exitcode != 0;
   my $serr = $prun.err.slurp;
   my $xml-output = $prun.out.slurp;
@@ -51,12 +49,12 @@ sub MAIN(
                        #= You can also use file 'id' given by --list-files like   @f1,@f2
                        #=
                        #= You can also exclude file by putting - in front of the file
-         , Bool :$merge-stypedef #= Merge a typedef pointing to a struct type to the struct name
+         , Bool :$merge-types = False #= Merge a typedef pointing to a struct type to the struct name
          , Str  :$gptfile #= Use the given GPT file to generate a module, all other (gpt) options are ignored
          , Str :$castxml-std = 'c89' #= allow for gptrixie to use castxml, you need to specificy the C standard
          , *@tooloptions #= remaining options are passed to gccxml. eg -I /path/needed/by/header
          ) {
-  my $of = do
+  my IO::Handle:D $of = do
     if not $o.defined {
       if $*OUT.t {
         die "I refuse to output to TTY. Specify '-o /dev/stdout' ignore this.";
@@ -66,7 +64,7 @@ sub MAIN(
       $o.open: :w
     };
   
-  LEAVE $of.flush;
+  # LEAVE { $of.flush; };
 
   # our $all = $all;
   my $all = False;
@@ -80,7 +78,7 @@ sub MAIN(
   }
 
 
-  my $gmerge-stypedef = $merge-stypedef;
+  # my $gmerge-stypedef = $merge-types;
 
   if $gptfile.defined {
     !!! "disabled due to bitrot"
@@ -104,7 +102,7 @@ sub MAIN(
       $of.put: "Cannot find command: $command";
       next;
     }
-    $xml-output = create-xml($prun);
+    $xml-output = timethis "Calling: <$prun.command()>", { create-xml($prun) };
     last;
   }
   if not $xml-output {
@@ -115,7 +113,7 @@ sub MAIN(
     die;
   } 
     
-  my AllTheThings $att = get-ast-from-header(:$of, :$xml-output, :$gmerge-stypedef);
+  my AllTheThings $att = get-ast-from-header(:$of, :$xml-output, :$merge-types);
 
   if $debug {
     note "\n==CSTRUCT==";

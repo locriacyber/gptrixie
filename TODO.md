@@ -1,0 +1,5 @@
+- HAS vs has
+- fixed sized array
+- use NativeCall;
+- remove 'enum bool'
+- change 'say' to $of.put:
