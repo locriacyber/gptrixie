@@ -37,7 +37,7 @@ sub MAIN(
         #                #= You can also exclude file by putting - in front of the file
          , Bool :$merge-types = False #= Merge a typedef pointing to a struct type to the struct name
          , Str  :$gptfile #= Use the given GPT file to generate a module, all other (gpt) options are ignored
-         , Str :$castxml-std = 'c89' #= allow for gptrixie to use castxml, you need to specificy the C standard
+         , Str :$castxml-std = 'c89' #= prefer to use castxml, you need to specificy the C standard
          , *@tooloptions #= remaining options are passed to gccxml. eg -I /path/needed/by/header
          ) {
   my IO::Handle:D $of = do

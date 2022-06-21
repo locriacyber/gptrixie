@@ -1,5 +1,9 @@
-- HAS vs has
+- make xml parsing go brrrrrr
+- use correctly: HAS vs has
 - fixed sized array
-- use NativeCall;
-- remove 'enum bool'
-- change 'say' to $of.put:
+
+HAS @.name[4] is CArray;
+
+- prepend "use NativeCall" to generated file
+- remove 'enum bool' in generated file
+- fix std header detection

@@ -2,11 +2,18 @@
 
 A tool to generate NativeCall code from C headers
 
-You will need gccxml and gcc/g++ 4.9 or castxml (it's based on clang/llvm)
-By default GPTrixie use GCCXML.
+**This tool is currently very broken for slightly complex C files.** See [TODO.md](TODO.md) if you want to help..
+
+## External Dependencies
+
+You will need gccxml and gcc/g++ 4.9 or castxml (it's based on clang/llvm).
+If either `gccxml` or `castxml` is on `$PATH`, GPTrixie will detect it automatically.
+
+By default GPTrixie use GCCXML, or CastXML when GCCXML is not installed.
 Beware some distributions provide gccxml as castxml and it's bad, you will need to change the code to use gccxml.real
 or make sure the gccxml executable is gccxml if you want to use gccxml.
-To use castxml you will need to use the --castxml option and give it the standard option castxml need to use (it's the --std option of castxml, c99 or c11 should work fine on recent version)
+
+You can use --castxml-std option to choose tools (it's the --std option of castxml, c99 or c11 should work fine on recent version).
 
 # Usage
 
